@@ -1,7 +1,12 @@
 _archive/
 **/__pycache__/
+
 assets/*
 !assets/.gitkeep
+
 runs/*
 !runs/.gitkeep
+
 .venv/
+
+scripts/test_script.ipynb
