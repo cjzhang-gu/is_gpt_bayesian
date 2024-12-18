@@ -70,6 +70,14 @@ def job_response_file_path(job_path, return_posix=True):
         return _convert_to_path(job_path) / "job_response_file.jsonl"
 
 
+def job_results_file_path(job_path, return_posix=True):
+    _check_bool(return_posix)
+    if return_posix:
+        return job_results_file_path(job_path, return_posix=False).as_posix()
+    else:
+        return _convert_to_path(job_path) / "job_results_file.csv"
+
+
 def create_path(path, exist_ok=True) -> None:
     path = _convert_to_path(path)
     path.mkdir(parents=True, exist_ok=exist_ok)
