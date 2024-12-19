@@ -21,14 +21,18 @@ def process_result_df(results_df, response_processing_fnc):
     # stacked
     results_df_stacked = results_df.copy()
     results_df_stacked['processed_response'] = results_df_stacked['textual_response'].apply(response_processing_fnc)
+    try:
+        results_df_stacked['processed_response'] = results_df_stacked['processed_response'].astype(int)
+    except:
+        results_df_stacked['processed_response'] = results_df_stacked['processed_response'].astype(float)
     
     # unstacked
     results_df_last_query = results_df_stacked[results_df_stacked['query_idx'] == results_df_stacked['query_total_count']]
     
     columns_name_list = ['subject_id', 'subject_uuid', 'temperature']
     values_name_list = ['processed_response']
-    del_name_list = ['batch_id', 'prompt', 'request_id', 'textual_response']
-    
+    del_name_list = ['obs_idx', 'batch_id', 'prompt', 'request_id', 'textual_response', 'created_time', 'query_idx', 'query_total_count']		
+
     results_df_unstacked = results_df_last_query.pivot(
         index=[col for col in results_df_last_query.columns if col not in columns_name_list + values_name_list + del_name_list],
         columns=columns_name_list, 
