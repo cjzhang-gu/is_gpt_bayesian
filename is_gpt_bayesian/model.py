@@ -21,7 +21,7 @@ class OpenAISession():
 
 
     def generate_batch_files(self, specs_df) -> dict:
-
+        
         run_specs_filename = path_utils.run_specs_file_path(self.run_name)
         path_utils.rename_with_index(run_specs_filename)
         specs_df.to_csv(run_specs_filename)
@@ -177,6 +177,9 @@ class OpenAISession():
 
     def resend_failed_jobs(self):
 
+        if self.all_completed():
+            logger.info('ALL JOBS ARE COMPLETED. NO FAILED JOBS.')
+
         for job_path in self.jobs:
 
             # read info file
@@ -208,6 +211,10 @@ class OpenAISession():
             run_results_df['query_total_count'] = run_results_df.groupby('obs_idx')['obs_idx'].transform('size')
             run_results_df.to_csv(run_results_filename)
             logger.info(f'Completed results saved to {run_results_filename}.')
+
+            if self.all_completed():
+                logger.info('ALL JOBS ARE COMPLETED. SHOULD CHECK IF RESEND_INVALID IS NECESSARY.')
+
             return run_results_df
         
 
@@ -224,7 +231,7 @@ class OpenAISession():
         # previously completed
         if os.path.exists(job_results_filename):
             job_results_df = pd.read_csv(job_results_filename, index_col=0)
-            return {job_path: 'Responses previously proceed.'}, job_results_df
+            return {job_path: f'Responses previously proceed. Saved as {job_results_filename}'}, job_results_df
 
         # just compelted
         with open(job_response_filename, 'r') as file:
@@ -235,7 +242,7 @@ class OpenAISession():
         job_results_df = pd.read_csv(job_specs_filename, index_col=0)
 
         if any(col in job_results_df.columns for col in ['batch_id', 'request_id', 'textual_response']):
-            raise NameError('Some or all')
+            raise RuntimeError('The specs df may have invalid columns, this may happen when resending queries that previously had invalid responses. Please check')
         
         job_results_df['batch_id'] = [r['id'] for r in job_response_content]
         job_results_df['request_id'] = [r['response']['request_id'] for r in job_response_content]

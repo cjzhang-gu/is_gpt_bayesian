@@ -66,7 +66,8 @@ if __name__ == '__main__':
             # "gpt-4o-mini", 
             # "gpt-4", 
             # "gpt-4-turbo", 
-            "gpt-3.5-turbo-0125"
+            "gpt-3.5-turbo-0125",
+            # "gpt-3.5-turbo-1106"
             ]
 
     # Instructions
@@ -82,11 +83,10 @@ if __name__ == '__main__':
     # ===================================
 
     # El-Gamal and Grether
-    if task_name == 'resend_invalid':
-        pass
-    else:
-        if run_name in ['wisconsin', 'california', 'eg']:
 
+    if run_name in ['wisconsin', 'california', 'eg']:
+        
+        if task_name in ['send', 'resend_invalid']:
             specs_eg = specs_processing.get_eg_specs_df(temperature_lower_bound, temperature_upper_bound,
                                                         models,
                                                         instructions,
@@ -99,21 +99,22 @@ if __name__ == '__main__':
             elif run_name == 'wisconsin':
                 run_specs = specs_eg[specs_eg['state'] == 'wisconsin']
 
-            response_fnc = response_processing.response_eg
+        response_fnc = response_processing.response_eg
 
-        elif run_name == 'hs':
+    elif run_name == 'hs':
 
+        if task_name in ['send', 'resend_invalid']:
             run_specs = specs_processing.get_hs_specs_df(temperature_lower_bound, temperature_upper_bound,
                                                         models,
                                                         instructions,
                                                         seeds)
 
-            response_fnc = response_processing.response_hs
+        response_fnc = response_processing.response_hs
 
-        else:
+    else:
 
-            raise ValueError('Invalid run_name argument.')
-        
+        raise ValueError('Invalid run_name argument.')
+    
 
     # ===================================
     # Run task
@@ -132,13 +133,18 @@ if __name__ == '__main__':
 
     elif task_name == 'resend_invalid':
 
-        run_specs = pd.read_csv(path_utils.run_results_file_path(run_name), index_col=0)
+        run_specs = pd.read_csv(path_utils.run_final_stacked_file_path(run_name), index_col=0)
         run_specs = run_specs[(run_specs['processed_response'] != 1) &
-                              (run_specs['processed_response'] != 0)]
-
-        session = OpenAISession(run_name)
-        session.generate_batch_files(run_specs)
-        session.send_batches()
+                              (run_specs['processed_response'] != 0) &
+                              (run_specs['query_idx'] == run_specs['query_total_count'])]
+        
+        if len(run_specs) == 0:
+            logger.info('ALL JOBS ARE COMPLETED. NO INVALID PROCESSED_RESPONSE.')
+        else:
+            specs_cols = pd.read_csv(path_utils.run_specs_file_path(run_name), index_col=0, nrows=0).columns
+            session = OpenAISession(run_name)
+            session.generate_batch_files(run_specs[specs_cols])
+            session.send_batches()
 
     elif task_name == 'retrieve':
 
@@ -153,9 +159,25 @@ if __name__ == '__main__':
         session.load_jobs()
         session.retrieve_batches()
         results_df = session.process_reponses()
-        final_df_stacked, final_df_unstacked = response_processing.process_result_df(results_df, response_processing.response_eg)
-        final_df_stacked.to_csv(path_utils.run_final_stacked_file_path(run_name))
-        final_df_unstacked.to_csv(path_utils.run_final_unstacked_file_path(run_name))
+        final_df_stacked, final_df_unstacked = response_processing.process_result_df(results_df, response_fnc)
+
+        final_df_stacked_filename = path_utils.run_final_stacked_file_path(run_name)
+        final_df_unstacked_filename = path_utils.run_final_unstacked_file_path(run_name)
+        final_df_stacked.to_csv(final_df_stacked_filename)
+        final_df_unstacked.to_csv(final_df_unstacked_filename)
+
+        logger.info(f'Stacked run results df saved to {final_df_stacked_filename}.')
+        logger.info(f'Unstacked run results df saved to {final_df_unstacked_filename}.')
+
+        # check for invalid
+        results_df_invalid = final_df_stacked[(final_df_stacked['processed_response'] != 1) &
+                                              (final_df_stacked['processed_response'] != 0) &
+                                              (final_df_stacked['query_idx'] == final_df_stacked['query_total_count'])]
+        
+        if len(results_df_invalid) == 0:
+            logger.info('Run result df has NO invalid processed_response.')
+        else:
+            logger.info(f'Run result df has {len(results_df_invalid)} invalid processed_response.')
 
     else:
 
