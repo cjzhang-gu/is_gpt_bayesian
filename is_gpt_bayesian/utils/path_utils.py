@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from is_gpt_bayesian.utils import time_utils
 
@@ -36,6 +37,30 @@ def run_specs_file_path(run_name, return_posix=True):
         return run_specs_file_path(run_name, return_posix=False).as_posix()
     else:
         return run_path(run_name, return_posix=False) / "run_specs_file.csv"
+
+
+def run_results_file_path(run_name, return_posix=True):
+    _check_bool(return_posix)
+    if return_posix:
+        return run_results_file_path(run_name, return_posix=False).as_posix()
+    else:
+        return run_path(run_name, return_posix=False) / "run_results_file.csv"
+
+
+def run_final_stacked_file_path(run_name, return_posix=True):
+    _check_bool(return_posix)
+    if return_posix:
+        return run_final_stacked_file_path(run_name, return_posix=False).as_posix()
+    else:
+        return run_path(run_name, return_posix=False) / "run_final_stacked_file.csv"
+
+
+def run_final_unstacked_file_path(run_name, return_posix=True):
+    _check_bool(return_posix)
+    if return_posix:
+        return run_final_unstacked_file_path(run_name, return_posix=False).as_posix()
+    else:
+        return run_path(run_name, return_posix=False) / "run_final_unstacked_file.csv"
 
 
 def job_specs_file_path(job_path, return_posix=True):
@@ -89,6 +114,26 @@ def get_subdirs(path, return_posix=True) -> list:
         return [d.as_posix() for d in _convert_to_path(path).iterdir() if d.is_dir()]
     else:
         return [d for d in _convert_to_path(path).iterdir() if d.is_dir()]
+    
+
+def rename_with_index(file_path):
+    
+    if not os.path.exists(file_path):
+        return
+    
+    dir_name, filename = os.path.split(file_path)
+    base, ext = os.path.splitext(filename)
+    
+    index = 0
+    while True:
+        new_name = f"{base}_{index}{ext}"
+        new_path = os.path.join(dir_name, new_name)
+        
+        if not os.path.exists(new_path):
+            os.rename(file_path, new_path)
+            break
+        
+        index += 1
 
 
 def _check_bool(return_posix):

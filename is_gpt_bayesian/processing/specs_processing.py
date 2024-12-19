@@ -8,9 +8,9 @@ from is_gpt_bayesian.processing import prompt_processing
 def md5_hash(s) -> int:
     return int(hashlib.md5(s.encode()).hexdigest(), 16)
 
-def random_uniform(seed, a, b) -> float:
+def random_uniform_on_grid(seed, grid) -> float:
     rng = np.random.default_rng(seed)
-    return rng.uniform(a, b)
+    return rng.choice(grid)
 
 def get_eg_data() -> pd.DataFrame:
 
@@ -98,7 +98,8 @@ def _get_specs_df(data_df,
                  prompt_fnc) -> pd.DataFrame:
     
     data_df = data_df.copy()
-    data_df['subject_uuid'].apply(lambda seed: random_uniform(seed, temperature_lower_bound, temperature_upper_bound))
+    grid = np.arange(temperature_lower_bound, temperature_upper_bound + 0.01, 0.01)
+    data_df['temperature'] = data_df['subject_uuid'].apply(lambda seed: random_uniform_on_grid(seed, grid))
     
     # Cartiesian product with models
     data_df = pd.merge(data_df,
@@ -114,6 +115,10 @@ def _get_specs_df(data_df,
                        how='cross')
     # Add prompt column
     data_df['prompt'] = data_df.apply(prompt_fnc, axis=1)
+
+    # Add index
+    data_df = pd.concat([pd.DataFrame({'obs_idx': range(len(data_df))}),
+                         data_df], axis=1)
 
     return data_df
 
