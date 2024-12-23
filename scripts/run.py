@@ -163,7 +163,7 @@ if __name__ == '__main__':
         if run_name in ['california', 'wisconsin']:
             final_df_stacked_dict, final_df_unstacked_ungrouped_dict = response_processing.process_result_df(results_df, response_fnc, run_name, ungroup_by=['name'])
         elif run_name == 'hs':
-            raise NotImplementedError
+            final_df_stacked_dict, final_df_unstacked_ungrouped_dict = response_processing.process_result_df(results_df, response_fnc, run_name, ungroup_by=['sheet_name'])
         
         for path, final_df in final_df_stacked_dict.items():
             final_df_stacked = final_df
@@ -175,8 +175,7 @@ if __name__ == '__main__':
             logger.info(f'Unstacked ungrouped run results df saved to {path}.')
 
         # check for invalid
-        results_df_invalid = final_df_stacked[(final_df_stacked['processed_response'] != 1) &
-                                              (final_df_stacked['processed_response'] != 0) &
+        results_df_invalid = final_df_stacked[(final_df_stacked['processed_response'].isna()) &
                                               (final_df_stacked['query_idx'] == final_df_stacked['query_total_count'])]
         
         if len(results_df_invalid) == 0:
