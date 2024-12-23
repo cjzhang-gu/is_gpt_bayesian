@@ -12,7 +12,12 @@ def random_uniform_on_grid(seed, grid) -> float:
     rng = np.random.default_rng(seed)
     return rng.choice(grid)
 
-def get_eg_data() -> pd.DataFrame:
+
+def get_california_data() -> pd.DataFrame:
+    raise NotImplementedError
+
+
+def get_wisconsin_data() -> pd.DataFrame:
 
     data_eg_path = path_utils.data_eg_path
 
@@ -22,6 +27,8 @@ def get_eg_data() -> pd.DataFrame:
     specs_list = []
 
     for design in data:
+        if design['state'][0] != 'wisconsin':
+            continue
         specs_dict = {}
         specs_dict['name'] = design['name'][0]
         specs_dict['priors'] = design['priors'].squeeze()
@@ -41,19 +48,29 @@ def get_eg_data() -> pd.DataFrame:
         design_df['trial_id'] = design_df['name'] + ' - Trial ' + design_df['trial_id'].astype(str)
         design_df = pd.concat([design_df] * specs_dict['nsubjects'], ignore_index=True)
         design_df['subject_id'] = np.repeat(np.arange(1, specs_dict['nsubjects'] + 1), repeats=specs_dict['ntrials'])
-        design_df['subject_id'] = design_df['name'] + ' - Subject ' + design_df['subject_id'].astype(str)
+        design_df['subject_id'] = design_df['name'].map({'DATA11': 'DATA11&12',
+                                                         'DATA12': 'DATA11&12',
+                                                         'DATA21': 'DATA21&22',
+                                                         'DATA22': 'DATA21&22'}) + ' - Subject ' + design_df['subject_id'].astype(str)
         specs_list.append(design_df) 
 
     specs_df = pd.concat(specs_list, ignore_index=True)
-    specs_df = specs_df[['name', 'state', 'trial_id', 'subject_id', 'nsubjects', 'ntrials', 'pay', 'nballs', 
+
+    specs_df = pd.concat([pd.DataFrame({'obs_idx': range(len(specs_df))}),
+                          specs_df], axis=1)
+    
+    specs_df = specs_df[['obs_idx', 'name', 'state', 'trial_id', 'subject_id', 'nsubjects', 'ntrials', 'pay', 'nballs', 
                         'ndraws_from_cage', 'cage_A_balls_marked_N', 'cage_B_balls_marked_N', 'nballs_prior_cage', 
                         'priors', 'ndraws']]
+    
     specs_df['subject_uuid'] = specs_df['subject_id'].apply(md5_hash)
     
     return specs_df
 
 
 def get_hs_data() -> pd.DataFrame:
+
+    raise NotImplementedError
 
     holt_and_smith_data_path = path_utils.data_hs_path
     def _read_data_helper(holt_and_smith_data_path, sheet_name):
@@ -76,7 +93,7 @@ def get_hs_data() -> pd.DataFrame:
         df['sheet_name'] = sheet_name
         df['Round'] = df['sheet_name'] + ' - Round ' + df['Round'].astype(str)
         df['id'] = df['sheet_name'] + ' - id ' + df['id'].astype(str)
-        df = df[['sheet_name', 'Round', 'id', 'Prior Pr(A)', 'prior', 'outcome', 'ndraws_from_cage', 'ndraws', 'outcome_expand']]
+        
         return df
 
     df1 = _read_data_helper(holt_and_smith_data_path, 'Part 1 Holt and Smith')
@@ -85,6 +102,12 @@ def get_hs_data() -> pd.DataFrame:
     df4 = _read_data_helper(holt_and_smith_data_path, 'Part 4 Holt and Smith')
 
     specs_df = pd.concat([df1, df2, df3, df4], ignore_index=True)
+
+    specs_df = pd.concat([pd.DataFrame({'obs_idx': range(len(specs_df))}),
+                          specs_df], axis=1)
+    
+    specs_df = specs_df[['obs_idx', 'sheet_name', 'Round', 'id', 'Prior Pr(A)', 'prior', 'outcome', 'ndraws_from_cage', 'ndraws', 'outcome_expand']]
+
     specs_df['subject_uuid'] = specs_df['id'].apply(md5_hash)
     
     return specs_df
@@ -110,25 +133,38 @@ def _get_specs_df(data_df,
                        pd.DataFrame(instructions, columns=['instruction']),
                        how='cross')
     # Cartiesian product with seeds
-    data_df = pd.merge(data_df,
-                       pd.DataFrame(seeds, columns=['seed']),
-                       how='cross')
+    if seeds:
+        data_df = pd.merge(data_df,
+                        pd.DataFrame(seeds, columns=['seed']),
+                        how='cross')
     # Add prompt column
     data_df['prompt'] = data_df.apply(prompt_fnc, axis=1)
-
-    # Add index
-    data_df = pd.concat([pd.DataFrame({'obs_idx': range(len(data_df))}),
-                         data_df], axis=1)
 
     return data_df
 
 
-def get_eg_specs_df(temperature_lower_bound, temperature_upper_bound,
+def get_california_specs_df(temperature_lower_bound, temperature_upper_bound,
                     models,
                     instructions,
                     seeds) -> pd.DataFrame:
 
-    data_df = get_eg_data()
+    data_df = get_california_data()
+    data_df = _get_specs_df(data_df,
+                           temperature_lower_bound, temperature_upper_bound,
+                           models,
+                           instructions,
+                           seeds,
+                           prompt_processing.prompt_eg)
+
+    return data_df
+
+
+def get_wisconsin_specs_df(temperature_lower_bound, temperature_upper_bound,
+                    models,
+                    instructions,
+                    seeds) -> pd.DataFrame:
+
+    data_df = get_wisconsin_data()
     data_df = _get_specs_df(data_df,
                            temperature_lower_bound, temperature_upper_bound,
                            models,

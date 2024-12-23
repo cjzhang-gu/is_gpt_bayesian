@@ -75,7 +75,7 @@ if __name__ == '__main__':
                     'no reasoning']
 
     # Model seed
-    seeds = [42]
+    seeds = []
 
 
     # ===================================
@@ -83,22 +83,22 @@ if __name__ == '__main__':
     # ===================================
 
     # El-Gamal and Grether
+    if run_name == 'california':
 
-    if run_name in ['wisconsin', 'california', 'eg']:
-        
         if task_name in ['send', 'resend_invalid']:
-            specs_eg = specs_processing.get_eg_specs_df(temperature_lower_bound, temperature_upper_bound,
-                                                        models,
-                                                        instructions,
-                                                        seeds)
-            
-            if run_name == 'eg':
-                run_specs = specs_eg
-            elif run_name == 'california':
-                run_specs = specs_eg[specs_eg['state'] == 'california']
-            elif run_name == 'wisconsin':
-                run_specs = specs_eg[specs_eg['state'] == 'wisconsin']
+            run_specs = specs_processing.get_california_specs_df(temperature_lower_bound, temperature_upper_bound,
+                                                                 models,
+                                                                 instructions,
+                                                                 seeds)
+        response_fnc = response_processing.response_eg
 
+    elif run_name == 'wisconsin':
+
+        if task_name in ['send', 'resend_invalid']:
+            run_specs = specs_processing.get_wisconsin_specs_df(temperature_lower_bound, temperature_upper_bound,
+                                                                models,
+                                                                instructions,
+                                                                seeds)
         response_fnc = response_processing.response_eg
 
     elif run_name == 'hs':
@@ -114,7 +114,7 @@ if __name__ == '__main__':
     else:
 
         raise ValueError('Invalid run_name argument.')
-    
+
 
     # ===================================
     # Run task
@@ -146,7 +146,7 @@ if __name__ == '__main__':
             session.generate_batch_files(run_specs[specs_cols])
             session.send_batches()
 
-    elif task_name == 'retrieve':
+    elif task_name == 'retrieve': 
 
         session = OpenAISession(run_name)
         session.load_jobs()
@@ -159,15 +159,20 @@ if __name__ == '__main__':
         session.load_jobs()
         session.retrieve_batches()
         results_df = session.process_reponses()
-        final_df_stacked, final_df_unstacked = response_processing.process_result_df(results_df, response_fnc)
 
-        final_df_stacked_filename = path_utils.run_final_stacked_file_path(run_name)
-        final_df_unstacked_filename = path_utils.run_final_unstacked_file_path(run_name)
-        final_df_stacked.to_csv(final_df_stacked_filename)
-        final_df_unstacked.to_csv(final_df_unstacked_filename)
-
-        logger.info(f'Stacked run results df saved to {final_df_stacked_filename}.')
-        logger.info(f'Unstacked run results df saved to {final_df_unstacked_filename}.')
+        if run_name in ['california', 'wisconsin']:
+            final_df_stacked_dict, final_df_unstacked_ungrouped_dict = response_processing.process_result_df(results_df, response_fnc, run_name, ungroup_by=['name'])
+        elif run_name == 'hs':
+            raise NotImplementedError
+        
+        for path, final_df in final_df_stacked_dict.items():
+            final_df_stacked = final_df
+            final_df.to_csv(path)
+            logger.info(f'Stacked run results df saved to {path}.')
+        
+        for path, final_df in final_df_unstacked_ungrouped_dict.items():
+            final_df.to_csv(path)
+            logger.info(f'Unstacked ungrouped run results df saved to {path}.')
 
         # check for invalid
         results_df_invalid = final_df_stacked[(final_df_stacked['processed_response'] != 1) &

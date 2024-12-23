@@ -207,8 +207,10 @@ class OpenAISession():
         if result_dfs:
             run_results_filename = path_utils.run_results_file_path(self.run_name)
             run_results_df = pd.concat(result_dfs, axis=0).sort_values(by=['obs_idx', 'created_time'])
-            run_results_df['query_idx'] = run_results_df.groupby('obs_idx').cumcount() + 1
-            run_results_df['query_total_count'] = run_results_df.groupby('obs_idx')['obs_idx'].transform('size')
+            groupby_cols = ['obs_idx', 'trial_id', 'subject_id', 'model', 'instruction'] + \
+                run_results_df.columns.intersection(['temperature', 'seed']).to_list()
+            run_results_df['query_idx'] = run_results_df.groupby(groupby_cols).cumcount() + 1
+            run_results_df['query_total_count'] = run_results_df.groupby(groupby_cols)['obs_idx'].transform('size')
             run_results_df.to_csv(run_results_filename)
             logger.info(f'Completed results saved to {run_results_filename}.')
 
