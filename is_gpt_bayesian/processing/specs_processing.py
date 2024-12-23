@@ -14,7 +14,51 @@ def random_uniform_on_grid(seed, grid) -> float:
 
 
 def get_california_data() -> pd.DataFrame:
-    raise NotImplementedError
+
+    data_eg_path = path_utils.data_eg_path
+
+    data = loadmat(data_eg_path)
+    data = data['datastruct'][0]
+
+    specs_list = []
+
+    for design in data:
+        if design['state'][0] != 'california':
+            continue
+        specs_dict = {}
+        specs_dict['name'] = design['name'][0]
+        specs_dict['priors'] = design['priors'].squeeze()
+        specs_dict['ndraws'] = design['ndraws'].squeeze()
+        specs_dict['nsubjects'] = design['subjectchoices'].shape[0]
+        specs_dict['ntrials'] = design['subjectchoices'].shape[1]
+        specs_dict['pay'] = design['pay'][0][0]
+        specs_dict['nballs'] = design['nballs'][0][0]
+        specs_dict['ndraws_from_cage'] = design['ndraws_from_cage'][0][0]
+        specs_dict['cage_A_balls_marked_N'] = design['cage_A_balls_marked_N'][0][0]
+        specs_dict['cage_B_balls_marked_N'] = design['cage_B_balls_marked_N'][0][0]
+        specs_dict['nballs_prior_cage'] = design['nballs_prior_cage'][0][0]
+        specs_dict['state'] = design['state'][0]
+
+        design_df = pd.DataFrame.from_dict(specs_dict)
+        design_df['trial_id'] = np.arange(1, specs_dict['ntrials'] + 1)
+        design_df['trial_id'] = design_df['name'] + ' - Trial ' + design_df['trial_id'].astype(str)
+        design_df = pd.concat([design_df] * specs_dict['nsubjects'], ignore_index=True)
+        design_df['subject_id'] = np.repeat(np.arange(1, specs_dict['nsubjects'] + 1), repeats=specs_dict['ntrials'])
+        design_df['subject_id'] = design_df['name'] + ' - Subject ' + design_df['subject_id'].astype(str)
+        specs_list.append(design_df) 
+
+    specs_df = pd.concat(specs_list, ignore_index=True)
+
+    specs_df = pd.concat([pd.DataFrame({'obs_idx': range(len(specs_df))}),
+                          specs_df], axis=1)
+    
+    specs_df = specs_df[['obs_idx', 'name', 'state', 'trial_id', 'subject_id', 'nsubjects', 'ntrials', 'pay', 'nballs', 
+                        'ndraws_from_cage', 'cage_A_balls_marked_N', 'cage_B_balls_marked_N', 'nballs_prior_cage', 
+                        'priors', 'ndraws']]
+    
+    specs_df['subject_uuid'] = specs_df['subject_id'].apply(md5_hash)
+    
+    return specs_df
 
 
 def get_wisconsin_data() -> pd.DataFrame:
@@ -70,8 +114,6 @@ def get_wisconsin_data() -> pd.DataFrame:
 
 def get_hs_data() -> pd.DataFrame:
 
-    raise NotImplementedError
-
     holt_and_smith_data_path = path_utils.data_hs_path
     def _read_data_helper(holt_and_smith_data_path, sheet_name):
         df = pd.read_excel(holt_and_smith_data_path, sheet_name=sheet_name)
@@ -91,8 +133,8 @@ def get_hs_data() -> pd.DataFrame:
         df['outcome_expand'] = df['outcome'].str.replace('D', 'Dark, ').str.replace('L', 'Light, ').str[:-2]
         df['ndraws'] = df['outcome'].str.count('D')
         df['sheet_name'] = sheet_name
-        df['Round'] = df['sheet_name'] + ' - Round ' + df['Round'].astype(str)
-        df['id'] = df['sheet_name'] + ' - id ' + df['id'].astype(str)
+        df['trial_id'] = df['sheet_name'] + ' - Round ' + df['Round'].astype(str)
+        df['subject_id'] = df['sheet_name'] + ' - id ' + df['id'].astype(str)
         
         return df
 
@@ -106,9 +148,9 @@ def get_hs_data() -> pd.DataFrame:
     specs_df = pd.concat([pd.DataFrame({'obs_idx': range(len(specs_df))}),
                           specs_df], axis=1)
     
-    specs_df = specs_df[['obs_idx', 'sheet_name', 'Round', 'id', 'Prior Pr(A)', 'prior', 'outcome', 'ndraws_from_cage', 'ndraws', 'outcome_expand']]
+    specs_df = specs_df[['obs_idx', 'sheet_name', 'trial_id', 'subject_id', 'Prior Pr(A)', 'prior', 'outcome', 'ndraws_from_cage', 'ndraws', 'outcome_expand']]
 
-    specs_df['subject_uuid'] = specs_df['id'].apply(md5_hash)
+    specs_df['subject_uuid'] = specs_df['subject_id'].apply(md5_hash)
     
     return specs_df
 

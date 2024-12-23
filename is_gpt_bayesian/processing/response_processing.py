@@ -1,7 +1,10 @@
+import re
 from is_gpt_bayesian.utils import time_utils, path_utils
+
 
 answer_A = "Cage A".replace(' ', '').lower()
 answer_B = "Cage B".replace(' ', '').lower()
+
 
 def response_eg(textual_response):
     processed_response = textual_response.split('\n')[-1].replace(' ', '').lower()
@@ -16,7 +19,45 @@ def response_eg(textual_response):
 
 
 def response_hs(textual_response):
-    return response_eg(textual_response)
+
+    # 1. Find the last non-empty line
+    lines = textual_response.strip().split('\n')
+    last_non_empty_line = None
+    for line in reversed(lines):
+        # Strip whitespace and see if anything remains
+        stripped = line.strip()
+        if stripped:
+            last_non_empty_line = stripped
+            break
+
+    if last_non_empty_line is None:
+        return None
+
+    # 2. Check if that line contains 'final answer' (case-insensitive)
+    if not re.search(r'final answer', last_non_empty_line, re.IGNORECASE):
+        return None
+
+    # 3. Extract fraction, decimal, or integer
+    fraction_match = re.search(r'(\d+\s*/\s*\d+)', last_non_empty_line)
+    if fraction_match:
+        fraction_str = fraction_match.group(1)
+        fraction_str = fraction_str.replace(' ', '')
+        numerator, denominator = fraction_str.split('/')
+        try:
+            return float(numerator) / float(denominator)
+        except ZeroDivisionError:
+            return None
+
+    decimal_match = re.search(r'\d+\.\d+', last_non_empty_line)
+    if decimal_match:
+        return float(decimal_match.group(0))
+
+    int_match = re.search(r'\d+', last_non_empty_line)
+    if int_match:
+        return float(int_match.group(0))
+
+    # 5. If no pattern found, return None
+    return None
 
 
 def process_result_df(results_df, response_processing_fnc, run_name, ungroup_by):
@@ -24,7 +65,8 @@ def process_result_df(results_df, response_processing_fnc, run_name, ungroup_by)
     results_df_stacked = results_df.copy()
     results_df_stacked['processed_response'] = results_df_stacked['textual_response'].apply(response_processing_fnc)
     try:
-        results_df_stacked['processed_response'] = results_df_stacked['processed_response'].astype(int)
+        if results_df_stacked['processed_response'] == results_df_stacked['processed_response'].astype(int).astype(float):
+            results_df_stacked['processed_response'] = results_df_stacked['processed_response'].astype(int)
     except:
         results_df_stacked['processed_response'] = results_df_stacked['processed_response'].astype(float)
     
