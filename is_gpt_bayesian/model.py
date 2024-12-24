@@ -209,8 +209,10 @@ class OpenAISession():
             run_results_df = pd.concat(result_dfs, axis=0).sort_values(by=['obs_idx', 'created_time'])
             groupby_cols = ['obs_idx', 'trial_id', 'subject_id', 'model', 'instruction'] + \
                 run_results_df.columns.intersection(['temperature', 'seed']).to_list()
-            run_results_df['query_idx'] = run_results_df.groupby(groupby_cols).cumcount() + 1
-            run_results_df['query_total_count'] = run_results_df.groupby(groupby_cols)['obs_idx'].transform('size')
+            run_results_df['with_response'] = run_results_df['textual_response'].notna().astype(int)
+            run_results_df['query_idx'] = run_results_df.groupby(groupby_cols)['with_response'].cumsum()
+            run_results_df['query_total_count'] = run_results_df.groupby(groupby_cols)['query_idx'].transform('max')
+            run_results_df = run_results_df.drop(columns=['with_response'])
             run_results_df.to_csv(run_results_filename)
             logger.info(f'Completed results saved to {run_results_filename}.')
 
@@ -245,12 +247,15 @@ class OpenAISession():
 
         if any(col in job_results_df.columns for col in ['batch_id', 'request_id', 'textual_response']):
             raise RuntimeError('The specs df may have invalid columns, this may happen when resending queries that previously had invalid responses. Please check')
-        
-        job_results_df['batch_id'] = [r['id'] for r in job_response_content]
-        job_results_df['request_id'] = [r['response']['request_id'] for r in job_response_content]
-        job_results_df['created_time'] = [r['response']['body']['created'] for r in job_response_content]
-        job_results_df['textual_response'] = [r['response']['body']['choices'][-1]['message']['content'] for r in job_response_content]
-        
+
+        job_response_content_df = pd.DataFrame({'batch_id': [r['id'] for r in job_response_content],
+                                                'request_id': [r['response']['request_id'] for r in job_response_content],
+                                                'created_time': [r['response']['body']['created'] for r in job_response_content],
+                                                'textual_response': [r['response']['body']['choices'][-1]['message']['content'] for r in job_response_content]},
+                                                index=[r['custom_id'] for r in job_response_content],)
+        job_response_content_df.index = job_response_content_df.index.str.replace('request-', '').astype(int) - 1
+
+        job_results_df = job_results_df.join(job_response_content_df)
         job_results_df.to_csv(job_results_filename)
         make_file_read_only(job_results_filename)
         logger.info(f'Results file saved to {job_results_filename}')

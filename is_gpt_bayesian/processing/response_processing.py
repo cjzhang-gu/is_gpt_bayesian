@@ -7,6 +7,8 @@ answer_B = "Cage B".replace(' ', '').lower()
 
 
 def response_eg(textual_response):
+    if not isinstance(textual_response, str):
+        return None
     processed_response = textual_response.split('\n')[-1].replace(' ', '').lower()
     if answer_A in processed_response and answer_B in processed_response:
         return None
@@ -19,6 +21,8 @@ def response_eg(textual_response):
 
 
 def response_hs(textual_response):
+    if not isinstance(textual_response, str):
+        return None
 
     # 1. Find the last non-empty line
     lines = textual_response.strip().split('\n')
