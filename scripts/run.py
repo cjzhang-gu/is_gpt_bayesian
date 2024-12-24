@@ -62,11 +62,11 @@ if __name__ == '__main__':
 
     # Models
     models = [
-            # "gpt-4o", 
-            # "gpt-4o-mini", 
-            # "gpt-4", 
-            # "gpt-4-turbo", 
-            "gpt-3.5-turbo-0125",
+            "gpt-4o", 
+            "gpt-4o-mini", 
+            "gpt-4", 
+            "gpt-4-turbo", 
+            # "gpt-3.5-turbo-0125",
             # "gpt-3.5-turbo-1106"
             ]
 
@@ -134,8 +134,7 @@ if __name__ == '__main__':
     elif task_name == 'resend_invalid':
 
         run_specs = pd.read_csv(path_utils.run_final_stacked_file_path(run_name), index_col=0)
-        run_specs = run_specs[(run_specs['processed_response'] != 1) &
-                              (run_specs['processed_response'] != 0) &
+        run_specs = run_specs[(run_specs['processed_response'].isna()) &
                               (run_specs['query_idx'] == run_specs['query_total_count'])]
         
         if len(run_specs) == 0:
