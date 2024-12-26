@@ -87,11 +87,22 @@ def process_result_df(results_df, response_processing_fnc, run_name, ungroup_by)
 
         for group_name, group_results_df in results_df_last_query.groupby(ungroup_by):
             results_df_unstacked_ungrouped_filename = path_utils.run_final_unstacked_ungrouped_file_path(run_name, '__'.join(group_name))
+            results_df_unstacked_ungrouped_mat_filename = path_utils.run_final_unstacked_ungrouped_mat_file_path(run_name, '__'.join(group_name))
+            results_df_unstacked_ungrouped_subject_filename = path_utils.run_final_unstacked_ungrouped_subject_file_path(run_name, '__'.join(group_name))
+            # full info pivot
             results_df_unstacked = group_results_df.pivot(
                 index=[col for col in group_results_df.columns if col not in columns_name_list + values_name_list + del_name_list],
                 columns=columns_name_list, 
                 values=values_name_list)
+            # mat value
+            results_df_unstacked_mat = results_df_unstacked.copy()
+            results_df_unstacked_mat.columns = results_df_unstacked_mat.columns.get_level_values('subject_id').rename(None)
+            results_df_unstacked_mat = results_df_unstacked_mat.reset_index()
+            # subject info
+            results_df_unstacked_subject = results_df_unstacked.columns.to_frame().reset_index(drop=True).iloc[:, 1:]
             unstacked_ungrouped_results_df_dict[results_df_unstacked_ungrouped_filename] = results_df_unstacked
+            unstacked_ungrouped_results_df_dict[results_df_unstacked_ungrouped_mat_filename] = results_df_unstacked_mat
+            unstacked_ungrouped_results_df_dict[results_df_unstacked_ungrouped_subject_filename] = results_df_unstacked_subject
         
         return ({path_utils.run_final_stacked_file_path(run_name): results_df_stacked}, 
                 unstacked_ungrouped_results_df_dict

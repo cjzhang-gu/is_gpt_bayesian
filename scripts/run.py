@@ -166,11 +166,11 @@ if __name__ == '__main__':
         
         for path, final_df in final_df_stacked_dict.items():
             final_df_stacked = final_df
-            final_df.to_csv(path)
+            final_df.to_csv(path, index=False)
             logger.info(f'Stacked run results df saved to {path}.')
         
         for path, final_df in final_df_unstacked_ungrouped_dict.items():
-            final_df.to_csv(path)
+            final_df.to_csv(path, index=False)
             logger.info(f'Unstacked ungrouped run results df saved to {path}.')
 
         # check for invalid
