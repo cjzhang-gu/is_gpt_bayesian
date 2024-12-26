@@ -3,6 +3,7 @@ import openai
 import logging
 import pickle
 import pprint
+import numpy as np
 import json
 from pathlib import Path
 import pandas as pd
@@ -206,19 +207,20 @@ class OpenAISession():
 
         if result_dfs:
             run_results_filename = path_utils.run_results_file_path(self.run_name)
-            run_results_df = pd.concat(result_dfs, axis=0).sort_values(by=['obs_idx', 'created_time'])
+            run_results_df = pd.concat(result_dfs, axis=0).sort_values(['created_time'], na_position='first')
             groupby_cols = ['obs_idx', 'trial_id', 'subject_id', 'model', 'instruction'] + \
                 run_results_df.columns.intersection(['temperature', 'seed']).to_list()
             run_results_df['with_response'] = run_results_df['textual_response'].notna().astype(int)
             run_results_df['query_idx'] = run_results_df.groupby(groupby_cols)['with_response'].cumsum()
             run_results_df['query_total_count'] = run_results_df.groupby(groupby_cols)['query_idx'].transform('max')
+            run_results_df.loc[run_results_df['query_idx']==0, 'query_idx'] = np.nan
+            run_results_df.loc[run_results_df['query_total_count']==0, 'query_total_count'] = np.nan
             run_results_df = run_results_df.drop(columns=['with_response'])
             run_results_df.to_csv(run_results_filename)
             logger.info(f'Completed results saved to {run_results_filename}.')
 
             if self.all_completed():
                 logger.info('ALL JOBS ARE COMPLETED. SHOULD CHECK IF RESEND_INVALID IS NECESSARY.')
-
             return run_results_df
         
 

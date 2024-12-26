@@ -71,6 +71,22 @@ def run_final_unstacked_ungrouped_file_path(run_name, group_name, return_posix=T
         return run_path(run_name, return_posix=False) / f"run_final_unstacked_{group_name}_file.csv"
 
 
+def run_final_unstacked_ungrouped_mat_file_path(run_name, group_name, return_posix=True):
+    _check_bool(return_posix)
+    if return_posix:
+        return run_final_unstacked_ungrouped_mat_file_path(run_name, group_name, return_posix=False).as_posix()
+    else:
+        return run_path(run_name, return_posix=False) / f"run_final_unstacked_{group_name}_mat_file.csv"
+
+
+def run_final_unstacked_ungrouped_subject_file_path(run_name, group_name, return_posix=True):
+    _check_bool(return_posix)
+    if return_posix:
+        return run_final_unstacked_ungrouped_subject_file_path(run_name, group_name, return_posix=False).as_posix()
+    else:
+        return run_path(run_name, return_posix=False) / f"run_final_unstacked_{group_name}_subject_file.csv"
+
+
 def job_specs_file_path(job_path, return_posix=True):
     _check_bool(return_posix)
     if return_posix:
@@ -119,9 +135,13 @@ def create_path(path, exist_ok=True) -> None:
 def get_subdirs(path, return_posix=True) -> list:
     _check_bool(return_posix)
     if return_posix:
-        return [d.as_posix() for d in _convert_to_path(path).iterdir() if d.is_dir()]
+        result = [d.as_posix() for d in _convert_to_path(path).iterdir() if d.is_dir()]
+        result.sort()
+        return result
     else:
-        return [d for d in _convert_to_path(path).iterdir() if d.is_dir()]
+        result = [d for d in _convert_to_path(path).iterdir() if d.is_dir()]
+        result.sort()
+        return result
     
 
 def rename_with_index(file_path):
