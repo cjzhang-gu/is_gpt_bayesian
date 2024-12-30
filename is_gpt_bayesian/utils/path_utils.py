@@ -55,6 +55,14 @@ def run_final_stacked_file_path(run_name, return_posix=True):
         return run_path(run_name, return_posix=False) / "run_final_stacked_file.csv"
 
 
+def run_final_stacked_processed_file_path(run_name, return_posix=True):
+    _check_bool(return_posix)
+    if return_posix:
+        return run_final_stacked_processed_file_path(run_name, return_posix=False).as_posix()
+    else:
+        return run_path(run_name, return_posix=False) / "run_final_stacked_processed_file.csv"
+
+
 def run_final_unstacked_file_path(run_name, return_posix=True):
     _check_bool(return_posix)
     if return_posix:

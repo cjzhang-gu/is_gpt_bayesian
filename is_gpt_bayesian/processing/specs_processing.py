@@ -125,13 +125,14 @@ def get_hs_data() -> pd.DataFrame:
                     value_name='outcome' 
                 )
         df['Prior Pr(A)'] = df['Prior Pr(A)'].str.replace(' ', '')
-        df['prior'] = df['Prior Pr(A)'].map({'1/2': 0.5,
-                                            '2/3': 0.67})
+        df['prior'] = df['Prior Pr(A)'].map({'1/2': 1/2,
+                                             '2/3': 2/3})
         df['outcome'] = df['outcome'].str.replace(' ', '').str.upper()
         df = df[df['outcome']!='*']
         df['ndraws_from_cage'] = df['outcome'].str.len()
+        df['D_draws_from_cage'] = df['outcome'].str.count('D')
+        df['L_draws_from_cage'] = df['outcome'].str.count('L')
         df['outcome_expand'] = df['outcome'].str.replace('D', 'Dark, ').str.replace('L', 'Light, ').str[:-2]
-        df['ndraws'] = df['outcome'].str.count('D')
         df['sheet_name'] = sheet_name
         df['trial_id'] = df['sheet_name'] + ' - Round ' + df['Round'].astype(str)
         df['subject_id'] = df['sheet_name'] + ' - id ' + df['id'].astype(str)
@@ -148,7 +149,7 @@ def get_hs_data() -> pd.DataFrame:
     specs_df = pd.concat([pd.DataFrame({'obs_idx': range(len(specs_df))}),
                           specs_df], axis=1)
     
-    specs_df = specs_df[['obs_idx', 'sheet_name', 'trial_id', 'subject_id', 'Prior Pr(A)', 'prior', 'outcome', 'ndraws_from_cage', 'ndraws', 'outcome_expand']]
+    specs_df = specs_df[['obs_idx', 'sheet_name', 'trial_id', 'subject_id', 'Prior Pr(A)', 'prior', 'outcome', 'ndraws_from_cage', 'D_draws_from_cage', 'L_draws_from_cage', 'outcome_expand']]
 
     specs_df['subject_uuid'] = specs_df['subject_id'].apply(md5_hash)
     
