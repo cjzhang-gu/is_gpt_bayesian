@@ -90,15 +90,17 @@ def prompt_hs(row):
     
     if row['ndraws_from_cage'] == 1:
         num_draws_str = f"1 ball"
+        with_replacement_str = ""
     else:
         num_draws_str = f"{row['ndraws_from_cage']} balls"
+        with_replacement_str = " with replacement"
 
     explanation = \
 f"""
 
-This experiment involves two stages. In stage 1 we will show you some information including the result of a drawing of {num_draws_str} with replacement from one of two possible cages, each containing different numbers of light and dark balls. Then at the start of stage 2 you will report a number P between 0 and 1. After your report, we will draw a random number U that is equally likely to be any number between 0 and 1. Your payoff from this experiment will either be $1000 or $0 depending on your report P and the random number U.
+This experiment involves two stages. In stage 1 we will show you some information including the result of a drawing of {num_draws_str}{with_replacement_str} from one of two possible cages, each containing different numbers of light and dark balls. Then at the start of stage 2 you will report a number P between 0 and 1. After your report, we will draw a random number U that is equally likely to be any number between 0 and 1. Your payoff from this experiment will either be $1000 or $0 depending on your report P and the random number U.
 
-Let's describe the two stages in more detail now. In stage 1 we will show you {num_draws_str} that are drawn at random and with replacement from one of two possible urns labelled A and B.
+Let's describe the two stages in more detail now. In stage 1 we will show you {num_draws_str} that are drawn at random{with_replacement_str} from one of two possible urns labelled A and B.
 
 Urn A contains 2 light balls and 1 dark ball.
 Urn B contains 1 light ball and 2 dark balls. 
@@ -107,7 +109,7 @@ We select the urn, A or B, from which we draw the sample of {num_draws_str} by t
 We do not show you the outcome of this throw of the die but we do tell you the rule we use to select urn A or B.
 
 If the outcome of the die throw is 1 to {prior_A_threshold} we select urn A.
-If the outcome of the die throw is {prior_A_threshold+1} to 6, we use urn B to draw the random sample of {num_draws_str} with replacement.
+If the outcome of the die throw is {prior_A_threshold+1} to 6, we use urn B to draw the random sample of {num_draws_str}{with_replacement_str}.
 
 Once you see the outcome of the sample of {num_draws_str}, stage 1 is over and stage 2 begins.
 
@@ -120,7 +122,7 @@ Case 2. If the number U is between the number P you report and 1, you will recei
 
 OK, this is the setup. Let's now start begin this experiment, starting with stage 1.
 
-We have tossed the die (the outcome we don't show to you) and selected one of these urns according to the rule given above (i.e. urn A if the die throw was 1 to {prior_A_threshold}, and urn B otherwise). We have drawn {num_draws_str} from the selected urn and the outcome is {', '.join(list(row['outcome']))}, where L indicates a light ball, and D indicates a dark ball.
+We have tossed the die (the outcome we don't show to you) and selected one of these urns according to the rule given above (i.e. urn A if the die throw was 1 to {prior_A_threshold}, and urn B otherwise). We have drawn {num_draws_str}{with_replacement_str} from the selected urn and the outcome is {', '.join(list(row['outcome']))}, i.e., {row['outcome_expand']}.
 
 Now, we are at stage 2 where we are asking you, given the information from stage 1 to report a number P between 0 and 1 that in conjunction with the random number U will determine if you get either $1000 or $0 according to the rule given in cases 1 and 2 above.
 
@@ -133,7 +135,7 @@ Please report a number P between 0 and 1 that maximizes your probability of winn
 """
 YOU ARE WELCOME TO ALSO DESCRIBE YOUR REASONING, BROKEN INTO SEPARATE STEPS, TO EXPLAIN HOW YOU ARRIVED AT YOUR FINAL ANSWER P. 
 Please state your answer in the following format at the end.
-Final Answer: [your P value here].
+Final answer: [your P value here].
 """
 
     elif row['instruction'] == "no reasoning":
@@ -141,7 +143,7 @@ Final Answer: [your P value here].
 """
 PLEASE JUST REPORT P AND DO NOT PROVIDE ANY REASONING AS TO HOW YOU ARRIVED AT THE VALUE P. 
 Please state your answer in the following format.
-Final Answer: [your P value here].
+Final answer: [your P value here].
 """
     return introduction + explanation + instruction
 

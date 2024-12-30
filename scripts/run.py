@@ -66,7 +66,7 @@ if __name__ == '__main__':
             "gpt-4o-mini", 
             "gpt-4", 
             "gpt-4-turbo", 
-            # "gpt-3.5-turbo-0125",
+            "gpt-3.5-turbo-0125",
             # "gpt-3.5-turbo-1106"
             ]
 
@@ -160,18 +160,18 @@ if __name__ == '__main__':
         results_df = session.process_reponses()
 
         if run_name in ['california', 'wisconsin']:
-            final_df_stacked_dict, final_df_unstacked_ungrouped_dict = response_processing.process_result_df(results_df, response_fnc, run_name, ungroup_by=['name'])
+            final_df_stacked_dict, final_df_unstacked_ungrouped_dict = response_processing.process_eg_result_df(results_df, response_fnc, run_name, ungroup_by=['name'])
         elif run_name == 'hs':
-            final_df_stacked_dict, final_df_unstacked_ungrouped_dict = response_processing.process_result_df(results_df, response_fnc, run_name, ungroup_by=['sheet_name'])
+            final_df_stacked_dict, final_df_unstacked_ungrouped_dict = response_processing.process_hs_result_df(results_df, response_fnc, run_name, ungroup_by=['sheet_name'])
         
         for path, final_df in final_df_stacked_dict.items():
             final_df_stacked = final_df
-            final_df.to_csv(path, index=False)
+            final_df.to_csv(path)
             logger.info(f'Stacked run results df saved to {path}.')
         
         for path, final_df in final_df_unstacked_ungrouped_dict.items():
             final_df.to_csv(path, index=False)
-            logger.info(f'Unstacked ungrouped run results df saved to {path}.')
+            logger.info(f'Processed / unstacked ungrouped run results df saved to {path}.')
 
         # check for invalid
         results_df_invalid = final_df_stacked[(final_df_stacked['processed_response'].isna()) &

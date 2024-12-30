@@ -21,19 +21,27 @@ def response_eg(textual_response):
 
 
 def response_hs(textual_response):
+    """
+    Looks for a 'final answer' line (case-insensitive).
+    Then attempts to parse, in order:
+      1) LaTeX fraction  ( e.g. \dfrac{2.5}{3.5} )
+      2) Plain fraction  ( e.g. 2.5 / 3.5 )
+      3) Decimal         ( e.g. 2.5 )
+      4) Integer         ( e.g. 2 )
+    Returns float or None if none is found.
+    """
+
     if not isinstance(textual_response, str):
         return None
 
-    # 1. Find the last non-empty line
+    # 1. Find the last non-empty line containing anything
     lines = textual_response.strip().split('\n')
     last_non_empty_line = None
     for line in reversed(lines):
-        # Strip whitespace and see if anything remains
-        stripped = line.strip()
-        if stripped:
-            last_non_empty_line = stripped
+        if line.strip():
+            last_non_empty_line = line.strip()
             break
-
+    
     if last_non_empty_line is None:
         return None
 
@@ -41,30 +49,76 @@ def response_hs(textual_response):
     if not re.search(r'final answer', last_non_empty_line, re.IGNORECASE):
         return None
 
-    # 3. Extract fraction, decimal, or integer
-    fraction_match = re.search(r'(\d+\s*/\s*\d+)', last_non_empty_line)
-    if fraction_match:
-        fraction_str = fraction_match.group(1)
-        fraction_str = fraction_str.replace(' ', '')
-        numerator, denominator = fraction_str.split('/')
+    # We now attempt to parse from that line. Let's call it line_of_interest
+    line_of_interest = last_non_empty_line
+
+    # ----------------------------------------------------------------------
+    # 3a. Look for a LaTeX fraction: \dfrac{2}{3} or \frac{2.5}{3.5}, etc.
+    #     Pattern:  \d?frac{ <num> }{ <num> }
+    #
+    #     Group 1 captures the numerator
+    #     Group 2 captures the denominator
+    #
+    #     We allow digits with optional decimal point in numerator/denominator.
+    # ----------------------------------------------------------------------
+    latex_fraction_pattern = re.compile(
+        r'\\d?frac\s*\{\s*([0-9]*\.?[0-9]+)\s*\}\s*\{\s*([0-9]*\.?[0-9]+)\s*\}',
+        re.IGNORECASE
+    )
+
+    latex_fraction_match = latex_fraction_pattern.search(line_of_interest)
+    if latex_fraction_match:
+        numerator_str, denominator_str = latex_fraction_match.groups()
         try:
-            return float(numerator) / float(denominator)
-        except ZeroDivisionError:
+            num = float(numerator_str)
+            den = float(denominator_str)
+            return num / den
+        except (ZeroDivisionError, ValueError):
             return None
 
-    decimal_match = re.search(r'\d+\.\d+', last_non_empty_line)
+    # ----------------------------------------------------------------------
+    # 3b. Look for a plain fraction with optional decimals: e.g. 2/3 or 2.5 / 3.5
+    # ----------------------------------------------------------------------
+    fraction_pattern = re.compile(
+        r'([0-9]*\.?[0-9]+)\s*/\s*([0-9]*\.?[0-9]+)'
+    )
+    fraction_match = fraction_pattern.search(line_of_interest)
+    if fraction_match:
+        numerator_str, denominator_str = fraction_match.groups()
+        try:
+            num = float(numerator_str)
+            den = float(denominator_str)
+            return num / den
+        except (ZeroDivisionError, ValueError):
+            return None
+
+    # ----------------------------------------------------------------------
+    # 3c. Look for a decimal: e.g. 0.5
+    # ----------------------------------------------------------------------
+    decimal_match = re.search(r'\d+\.\d+', line_of_interest)
     if decimal_match:
-        return float(decimal_match.group(0))
+        try:
+            return float(decimal_match.group(0))
+        except ValueError:
+            return None
 
-    int_match = re.search(r'\d+', last_non_empty_line)
+    # ----------------------------------------------------------------------
+    # 3d. Look for an integer: e.g. 1
+    # ----------------------------------------------------------------------
+    int_match = re.search(r'\d+', line_of_interest)
     if int_match:
-        return float(int_match.group(0))
+        try:
+            return float(int_match.group(0))
+        except ValueError:
+            return None
 
-    # 5. If no pattern found, return None
+    # ----------------------------------------------------------------------
+    # 4. If no pattern found, return None
+    # ----------------------------------------------------------------------
     return None
 
 
-def process_result_df(results_df, response_processing_fnc, run_name, ungroup_by):
+def process_eg_result_df(results_df, response_processing_fnc, run_name, ungroup_by):
     # stacked
     results_df_stacked = results_df.copy()
     results_df_stacked['processed_response'] = results_df_stacked['textual_response'].apply(response_processing_fnc)
@@ -73,6 +127,9 @@ def process_result_df(results_df, response_processing_fnc, run_name, ungroup_by)
             results_df_stacked['processed_response'] = results_df_stacked['processed_response'].astype(int)
     except:
         results_df_stacked['processed_response'] = results_df_stacked['processed_response'].astype(float)
+
+    # adding output columns
+    # results_df_stacked['posterior_prob'] = results_df_stacked.apply(eg_posterior_probability, axis=1)
     
     # unstacked
     results_df_last_query = results_df_stacked[results_df_stacked['query_idx'] == results_df_stacked['query_total_count']]
@@ -117,3 +174,55 @@ def process_result_df(results_df, response_processing_fnc, run_name, ungroup_by)
         return ({path_utils.run_final_stacked_file_path(run_name): results_df_stacked}, 
                 {path_utils.run_final_unstacked_file_path(run_name): results_df_unstacked}
                 )
+    
+
+def process_hs_result_df(results_df, response_processing_fnc, run_name, ungroup_by):
+    # stacked
+    results_df_stacked = results_df.copy()
+    results_df_stacked['processed_response'] = results_df_stacked['textual_response'].apply(response_processing_fnc)
+    try:
+        if results_df_stacked['processed_response'] == results_df_stacked['processed_response'].astype(int).astype(float):
+            results_df_stacked['processed_response'] = results_df_stacked['processed_response'].astype(int)
+    except:
+        results_df_stacked['processed_response'] = results_df_stacked['processed_response'].astype(float)
+
+    # adding output columns
+    results_df_stacked['posterior_prob'] = results_df_stacked.apply(hs_posterior_probability, axis=1)
+
+    # processed
+    results_df_stacked_processed = results_df_stacked[results_df_stacked['query_idx'] == results_df_stacked['query_total_count']]
+    results_df_stacked_processed = results_df_stacked_processed.sort_values(['model', 'obs_idx', 'instruction'])
+
+    return ({path_utils.run_final_stacked_file_path(run_name): results_df_stacked},
+            {path_utils.run_final_stacked_processed_file_path(run_name): results_df_stacked_processed})
+
+
+def eg_posterior_probability(row):
+    likelihood = (row['cage_A_balls_marked_N']/row['nballs']) ** row['ndraws'] * \
+                 (1 - row['cage_A_balls_marked_N']/row['nballs']) ** (row['ndraws_from_cage'] - row['ndraws'])
+    
+    prior = row['priors'] / row['nballs_prior_cage']
+
+    marginal = likelihood * prior + \
+               (row['cage_B_balls_marked_N']/row['nballs']) ** row['ndraws'] * \
+               (1 - row['cage_B_balls_marked_N']/row['nballs']) ** (row['ndraws_from_cage'] - row['ndraws']) * (1-prior)
+    
+    return likelihood * prior / marginal
+
+
+def hs_posterior_probability(row):
+    A_light_prob = 2 / 3
+    B_light_prob = 1 / 3
+    likelihood = (A_light_prob ** row['L_draws_from_cage']) * \
+                 ((1-A_light_prob) ** row['D_draws_from_cage'])
+    
+    if row['Prior Pr(A)'] == '1/2':
+        prior = 1 / 2
+    elif row['Prior Pr(A)'] == '2/3':
+        prior = 2 / 3
+    
+    marginal = likelihood * prior + \
+               (B_light_prob ** row['L_draws_from_cage']) * \
+               ((1-B_light_prob) ** row['D_draws_from_cage']) * (1-prior)
+    
+    return likelihood * prior / marginal
