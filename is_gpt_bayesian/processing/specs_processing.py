@@ -124,11 +124,14 @@ def get_hs_data() -> pd.DataFrame:
                     var_name='id',
                     value_name='outcome' 
                 )
-        df['Prior Pr(A)'] = df['Prior Pr(A)'].str.replace(' ', '')
+        df['Prior Pr(A)'] = df['Prior Pr(A)'].str.replace(' ', '').map({'1/2': '1/2',
+                                                                        '½': '1/2', 
+                                                                        '2/3': '2/3',
+                                                                        r'\2/3': '2/3'})
         df['prior'] = df['Prior Pr(A)'].map({'1/2': 1/2,
                                              '2/3': 2/3})
-        df['outcome'] = df['outcome'].str.replace(' ', '').str.upper()
-        df = df[df['outcome']!='*']
+        df['outcome'] = df['outcome'].str.replace(r'[^dDlL]', '', regex=True).str.upper()
+        df = df[df['outcome'] != '']
         df['ndraws_from_cage'] = df['outcome'].str.len()
         df['D_draws_from_cage'] = df['outcome'].str.count('D')
         df['L_draws_from_cage'] = df['outcome'].str.count('L')
