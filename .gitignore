@@ -10,3 +10,4 @@ runs/*
 .venv/
 
 scripts/test_script.ipynb
+scripts/test.py
