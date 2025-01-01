@@ -7,6 +7,7 @@ import numpy as np
 import json
 from pathlib import Path
 import pandas as pd
+import asyncio
 from is_gpt_bayesian.utils import time_utils, path_utils
 
 logger = logging.getLogger(__name__)
@@ -14,8 +15,16 @@ logger = logging.getLogger(__name__)
 
 class OpenAISession():
 
+    non_batch_models = ['o1', 
+                        'o1-preview',
+                        'o1-mini',
+                        # 'gpt-4o-mini' # for testing
+                        ]
+
+
     def __init__(self, run_name):
         self.client = openai.OpenAI()
+        self.async_client = openai.AsyncOpenAI()
         self.run_name = run_name
         self.jobs = []
         logger.info(f'OpenAI session created with run_name {self.run_name}.')
@@ -90,26 +99,134 @@ class OpenAISession():
 
         source_filename = path_utils.job_source_file_path(job_path)
 
-        # create file object
-        batch_input_file = self.client.files.create(file=open(source_filename, "rb"),
-                                                    purpose="batch"
-                                                    )
+        # check if batch has the same model
+        with open(source_filename, "r") as file:
+            source_file_models = [json.loads(line)['body']['model'] for line in file]
+            source_file_models = set(source_file_models)
 
-        # send batch job
-        batch_obj = self.client.batches.create(input_file_id=batch_input_file.id,
-                                                endpoint="/v1/chat/completions",
-                                                completion_window="24h",
-                                                metadata={"description": "eval job"}
-                                                )
-        logger.info(f"Batch job {batch_obj.id} sent to OpenAI.")
+        if len(source_file_models) != 1:
+            raise ValueError('Batch file has multiple models.')
         
+        # check if batch is non-batch model
+        if source_file_models.pop() in OpenAISession.non_batch_models:
+            logger.info(f"ASYNC JOB STARTED: Non-batch model {job_path}")
+            asyncio.run(self._send_and_retrieve_non_batch(job_path))
+            logger.info(f"ASYNC JOB STARTED: Non-batch model {job_path}")
+            return {job_path: 'Non-batch model sent and retrieved.'}
+        else:
+            # create file object
+            batch_input_file = self.client.files.create(file=open(source_filename, "rb"),
+                                                        purpose="batch"
+                                                        )
+
+            # send batch job
+            batch_obj = self.client.batches.create(input_file_id=batch_input_file.id,
+                                                   endpoint="/v1/chat/completions",
+                                                   completion_window="24h",
+                                                   metadata={"description": "eval job"}
+                                                   )
+            logger.info(f"Batch job {batch_obj.id} sent to OpenAI.")
+            
+            # save info file
+            job_info_filename = path_utils.job_info_file_path(job_path)
+            with open(job_info_filename, "w") as file:
+                json.dump(_obj_to_json_dict_helper(batch_obj), file, indent=4)
+            logger.info(f"Info file saved to {job_info_filename}.")
+
+            return {job_path: 'sent'}
+    
+
+    async def _send_and_retrieve_non_batch(self, job_path):
+
+        # read source file
+        source_filename = path_utils.job_source_file_path(job_path)
+        with open(source_filename, "r") as file:
+            job_source_list = [json.loads(line) for line in file]
+        
+        # send queries
+        job_info = {"status": "started",
+                    "created_at": time_utils.get_unix_utc_timestamp(),
+                    "metadata": {
+                        "description": "this was a non-batch model job"
+                    }}
+        tasks = [self._send_one_query(**one_query['body']) for one_query in job_source_list]
+        responses = await asyncio.gather(*tasks)
+
+        # write to response file
+        job_response_filename = path_utils.job_response_file_path(job_path)
+        with open(job_response_filename, "w") as file:
+            for completion_obj, one_query in zip(responses, job_source_list):
+                response = self.completion_object_to_batch_response(completion_obj, custom_id=one_query['custom_id'])
+                if response:
+                    file.write(json.dumps(response) + '\n')
+        make_file_read_only(job_response_filename)
+
         # save info file
         job_info_filename = path_utils.job_info_file_path(job_path)
         with open(job_info_filename, "w") as file:
-            json.dump(_obj_to_json_dict_helper(batch_obj), file, indent=4)
-        logger.info(f"Info file saved to {job_info_filename}.")
+            job_info.update(
+                    {"status": "completed",
+                     "completed_at": time_utils.get_unix_utc_timestamp()}
+                )
+            json.dump(job_info, file, indent=4)
+        logger.info(f"Info file saved to {job_info_filename}.") 
 
-        return {job_path: 'sent'}
+
+    async def _send_one_query(self, **kwargs):
+        return await self.async_client.chat.completions.create(**kwargs)
+    
+
+    def completion_object_to_batch_response(self, completion, custom_id):
+
+        if not isinstance(completion, openai.types.chat.chat_completion.ChatCompletion):
+            raise ValueError('Completion object is not an instance of openai.ChatCompletion.')
+        
+        try:
+            response = {
+                "id": "non_batch_chat_completion_" + completion.id,
+                "custom_id": custom_id, 
+                "response": {
+                    "status_code": "non_batch_chat_completion", 
+                    "request_id": "non_batch_chat_completion_" + completion._request_id, 
+                    "body": {
+                        "id": completion.id,
+                        "object": completion.object,
+                        "created": completion.created,
+                        "model": completion.model,
+                        "choices": [{
+                            "index": choice.index, 
+                            "message": {
+                                "role": choice.message.role,
+                                "content": choice.message.content,
+                                "refusal": choice.message.refusal}, 
+                            "logprobs": choice.logprobs, 
+                            "finish_reason": choice.finish_reason
+                        } for choice in completion.choices], 
+                        "usage": {
+                            "prompt_tokens": completion.usage.prompt_tokens,
+                            "completion_tokens": completion.usage.completion_tokens,
+                            "total_tokens": completion.usage.total_tokens,
+                            "prompt_tokens_details": {
+                                "cached_tokens": completion.usage.prompt_tokens_details.cached_tokens, 
+                                "audio_tokens": completion.usage.prompt_tokens_details.audio_tokens
+                            }, 
+                            "completion_tokens_details": {
+                                "reasoning_tokens": completion.usage.completion_tokens_details.reasoning_tokens, 
+                                "audio_tokens": completion.usage.completion_tokens_details.audio_tokens, 
+                                "accepted_prediction_tokens": completion.usage.completion_tokens_details.accepted_prediction_tokens, 
+                                "rejected_prediction_tokens": completion.usage.completion_tokens_details.rejected_prediction_tokens}
+                            },
+                        "system_fingerprint": completion.system_fingerprint
+                    }
+                }, 
+                "error": None
+            }
+        except Exception as e:
+            response = None
+            logger.error(f"Error occurred while converting completion object to response: {e}")
+            logger.error(f"Completion object: \n{completion}")
+
+        return response
 
 
     def load_jobs(self):
@@ -254,7 +371,7 @@ class OpenAISession():
                                                 'request_id': [r['response']['request_id'] for r in job_response_content],
                                                 'created_time': [r['response']['body']['created'] for r in job_response_content],
                                                 'textual_response': [r['response']['body']['choices'][-1]['message']['content'] for r in job_response_content]},
-                                                index=[r['custom_id'] for r in job_response_content],)
+                                                index=[r['custom_id'] for r in job_response_content])
         job_response_content_df.index = job_response_content_df.index.str.replace('request-', '').astype(int) - 1
 
         job_results_df = job_results_df.join(job_response_content_df)

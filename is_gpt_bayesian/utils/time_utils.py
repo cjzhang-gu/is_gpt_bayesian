@@ -8,3 +8,6 @@ def get_secondstamp() -> str:
 
 def get_microsecondstamp() -> str:
     return pd.Timestamp.now(tz='US/Eastern').strftime('%Y%m%d_%H%M%S_%f_%Z%z')
+
+def get_unix_utc_timestamp() -> int:
+    return int(pd.Timestamp.utcnow().timestamp())

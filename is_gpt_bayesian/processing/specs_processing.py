@@ -167,7 +167,7 @@ def _get_specs_df(data_df,
                  prompt_fnc) -> pd.DataFrame:
     
     data_df = data_df.copy()
-    grid = np.arange(temperature_lower_bound, temperature_upper_bound + 0.01, 0.01)
+    grid = np.arange(temperature_lower_bound, temperature_upper_bound + 0.001, 0.01) # using +0.001 to avoid floating point error
     data_df['temperature'] = data_df['subject_uuid'].apply(lambda seed: random_uniform_on_grid(seed, grid))
     
     # Cartiesian product with models

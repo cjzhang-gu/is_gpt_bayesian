@@ -57,17 +57,18 @@ if __name__ == '__main__':
     # ===================================
 
     # Temperatures
-    temperature_lower_bound = 0
-    temperature_upper_bound = 1.2
+    temperature_lower_bound = 1
+    temperature_upper_bound = 1
 
     # Models
     models = [
-            "gpt-4o", 
-            "gpt-4o-mini", 
-            "gpt-4", 
-            "gpt-4-turbo", 
-            "gpt-3.5-turbo-0125",
-            # "gpt-3.5-turbo-1106"
+            # "gpt-4o",                 # points to gpt-4o-2024-08-06
+            # "gpt-4o-mini",            # points to gpt-4o-mini-2024-07-18
+            # "gpt-4",                  # points to gpt-4-0613
+            # "gpt-4-turbo",            # points to gpt-4-turbo-2024-04-09
+            # "gpt-3.5-turbo-0125",     # points to gpt-3.5-turbo-0125
+            "o1-mini",                # points to o1-mini-2024-09-12
+            "o1-preview"              # points to o1-preview-2024-09-12
             ]
 
     # Instructions
@@ -120,6 +121,16 @@ if __name__ == '__main__':
     # Run task
     # ===================================
 
+    try:
+        # run_specs = run_specs.head(4)
+        # run_specs = run_specs[(run_specs['subject_id']=='DATA11&12 - Subject 1') &
+        #                       (run_specs['instruction']=='reasoning')]
+        run_specs = run_specs[(run_specs['subject_id']=='Part 1 Holt and Smith - id S1') &
+                        (run_specs['instruction']=='reasoning')]
+        print(run_specs)
+    except:
+        pass
+
     if task_name == 'send':
 
         session = OpenAISession(run_name)
@@ -170,7 +181,10 @@ if __name__ == '__main__':
             logger.info(f'Stacked run results df saved to {path}.')
         
         for path, final_df in final_df_unstacked_ungrouped_dict.items():
-            final_df.to_csv(path, index=False)
+            if isinstance(final_df.index, pd.MultiIndex):
+                final_df.to_csv(path)
+            else:
+                final_df.to_csv(path, index=False)
             logger.info(f'Processed / unstacked ungrouped run results df saved to {path}.')
 
         # check for invalid
