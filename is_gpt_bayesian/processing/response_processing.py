@@ -1,6 +1,26 @@
 import re
 from is_gpt_bayesian.utils import time_utils, path_utils
+import unicodedata
 
+
+NUM_WORDS = {
+    "ONE": 1, "TWO": 2, "THREE": 3, "FOUR": 4, "FIVE": 5, "SIX": 6,
+    "SEVEN": 7, "EIGHT": 8, "NINE": 9, "TEN": 10, "ELEVEN": 11, "TWELVE": 12
+}
+
+DEN_WORDS = {
+    "HALF": 2, "HALVES": 2,
+    "THIRD": 3, "THIRDS": 3,
+    "FOURTH": 4, "FOURTHS": 4,
+    "FIFTH": 5, "FIFTHS": 5,
+    "SIXTH": 6, "SIXTHS": 6,
+    "SEVENTH": 7, "SEVENTHS": 7,
+    "EIGHTH": 8, "EIGHTHS": 8,
+    "NINTH": 9, "NINTHS": 9,
+    "TENTH": 10, "TENTHS": 10,
+    "ELEVENTH": 11, "ELEVENTHS": 11,
+    "TWELFTH": 12, "TWELFTHS": 12
+}
 
 answer_A = "Cage A".replace(' ', '').lower()
 answer_B = "Cage B".replace(' ', '').lower()
@@ -17,55 +37,107 @@ def response_eg(textual_response):
     elif answer_B in processed_response:
         return '0'
     else:
+        if "equal" in processed_response or "indifferent" in processed_response:
+            return '0.5'
         return None
 
+def parse_single_char_fraction(ch: str) -> float | None:
+    """
+    Tries to parse a single Unicode 'vulgar fraction' character (e.g., ½, ⅓, ⅔, ⅘).
+    Returns the corresponding float if recognized, or None if it cannot be parsed.
+    """
+    if len(ch) != 1:
+        return None  # Must be exactly one character
+
+    # Get the official Unicode name, e.g. "VULGAR FRACTION ONE HALF", "VULGAR FRACTION TWO THIRDS"
+    try:
+        name = unicodedata.name(ch)
+    except ValueError:
+        # Character has no name in Unicode or is invalid
+        return None
+
+    # Check if it is indeed a "VULGAR FRACTION ..."
+    # e.g. name might be: "VULGAR FRACTION THREE EIGHTHS"
+    if not name.startswith("VULGAR FRACTION "):
+        return None
+
+    # Remove the leading "VULGAR FRACTION " (16 characters)
+    remainder = name[len("VULGAR FRACTION "):]  # e.g., "THREE EIGHTHS"
+
+    # Split into words, e.g. ["THREE", "EIGHTHS"]
+    words = remainder.split()
+
+    # Typically, this will be 2 words for standard fractions: [NUMERATOR_WORD, DENOMINATOR_WORD],
+    # e.g. ["TWO", "THIRDS"] -> 2/3, ["ONE", "HALF"] -> 1/2, ["THREE", "EIGHTHS"] -> 3/8, etc.
+    #
+    # There *are* some less-common multi-word sequences like "ONE HUNDRED TWENTY-EIGHTH",
+    # but for typical usage we can assume numerator is the first word, denominator is the second.
+    if len(words) != 2:
+        return None  # We won't handle multi-word fraction names beyond the typical ones.
+
+    num_word, den_word = words  # e.g. "THREE", "EIGHTHS"
+
+    # Convert numerator word -> integer
+    numerator = NUM_WORDS.get(num_word)
+    if numerator is None:
+        return None
+
+    # Convert denominator word -> integer
+    denominator = DEN_WORDS.get(den_word)
+    if denominator is None:
+        return None
+
+    try:
+        return numerator / denominator
+    except ZeroDivisionError:
+        return None
+    
 
 def response_hs(textual_response):
     """
-    Looks for a 'final answer' line (case-insensitive).
-    Then attempts to parse, in order:
-      1) LaTeX fraction  ( e.g. \dfrac{2.5}{3.5} )
-      2) Plain fraction  ( e.g. 2.5 / 3.5 )
-      3) Decimal         ( e.g. 2.5 )
-      4) Integer         ( e.g. 2 )
-    Returns float or None if none is found.
+    1) Find the LAST occurrence of "final answer" in the text (case-insensitive).
+    2) Extract everything AFTER that phrase.
+    3) Parse that substring for:
+       - LaTeX fraction  (\dfrac{2.5}{3.5} or \frac{1}{2})
+       - Plain fraction  (e.g. "2.5 / 3.5" or "2⁄3")
+       - Decimal         (e.g. "0.5")
+       - Integer         (e.g. "2")
+       - Single-char fraction (e.g. "½", "⅔")
+    4) Return the float value, or None if parsing fails.
     """
 
     if not isinstance(textual_response, str):
         return None
 
-    # 1. Find the last non-empty line containing anything
-    lines = textual_response.strip().split('\n')
-    last_non_empty_line = None
-    for line in reversed(lines):
-        if line.strip():
-            last_non_empty_line = line.strip()
-            break
-    
-    if last_non_empty_line is None:
-        return None
+    # ---------------------------------------------------------
+    # 1) Find the last occurrence of "final answer" (case-insensitive)
+    # ---------------------------------------------------------
+    matches = list(re.finditer(r'final answer', textual_response, re.IGNORECASE))
+    if not matches:
+        return None  # No occurrence at all
 
-    # 2. Check if that line contains 'final answer' (case-insensitive)
-    if not re.search(r'final answer', last_non_empty_line, re.IGNORECASE):
-        return None
+    last_match = matches[-1]
+    # We'll parse everything *after* "final answer"
+    start_pos = last_match.end()
+    substring = textual_response[start_pos:].strip()
 
-    # We now attempt to parse from that line. Let's call it line_of_interest
-    line_of_interest = last_non_empty_line
+    # If nothing after 'final answer', we might parse from the same line 
+    # in case the fraction or number is on that same line.
+    if not substring:
+        substring = textual_response[last_match.start():].strip()
+        if not substring:
+            return None
 
-    # ----------------------------------------------------------------------
-    # 3a. Look for a LaTeX fraction: \dfrac{2}{3} or \frac{2.5}{3.5}, etc.
-    #     Pattern:  \d?frac{ <num> }{ <num> }
-    #
-    #     Group 1 captures the numerator
-    #     Group 2 captures the denominator
-    #
-    #     We allow digits with optional decimal point in numerator/denominator.
-    # ----------------------------------------------------------------------
+    # This is our candidate string to parse
+    line_of_interest = substring
+
+    # ---------------------------------------------------------
+    # 2a) LaTeX fraction: \dfrac{2}{3} or \frac{2.5}{3.5}
+    # ---------------------------------------------------------
     latex_fraction_pattern = re.compile(
         r'\\d?frac\s*\{\s*([0-9]*\.?[0-9]+)\s*\}\s*\{\s*([0-9]*\.?[0-9]+)\s*\}',
         re.IGNORECASE
     )
-
     latex_fraction_match = latex_fraction_pattern.search(line_of_interest)
     if latex_fraction_match:
         numerator_str, denominator_str = latex_fraction_match.groups()
@@ -76,11 +148,11 @@ def response_hs(textual_response):
         except (ZeroDivisionError, ValueError):
             return None
 
-    # ----------------------------------------------------------------------
-    # 3b. Look for a plain fraction with optional decimals: e.g. 2/3 or 2.5 / 3.5
-    # ----------------------------------------------------------------------
+    # ---------------------------------------------------------
+    # 2b) Plain fraction with optional decimals, using '/' or '⁄'
+    # ---------------------------------------------------------
     fraction_pattern = re.compile(
-        r'([0-9]*\.?[0-9]+)\s*/\s*([0-9]*\.?[0-9]+)'
+        r'([0-9]*\.?[0-9]+)\s*[/⁄]\s*([0-9]*\.?[0-9]+)'
     )
     fraction_match = fraction_pattern.search(line_of_interest)
     if fraction_match:
@@ -92,9 +164,9 @@ def response_hs(textual_response):
         except (ZeroDivisionError, ValueError):
             return None
 
-    # ----------------------------------------------------------------------
-    # 3c. Look for a decimal: e.g. 0.5
-    # ----------------------------------------------------------------------
+    # ---------------------------------------------------------
+    # 2c) Decimal
+    # ---------------------------------------------------------
     decimal_match = re.search(r'\d+\.\d+', line_of_interest)
     if decimal_match:
         try:
@@ -102,9 +174,9 @@ def response_hs(textual_response):
         except ValueError:
             return None
 
-    # ----------------------------------------------------------------------
-    # 3d. Look for an integer: e.g. 1
-    # ----------------------------------------------------------------------
+    # ---------------------------------------------------------
+    # 2d) Integer
+    # ---------------------------------------------------------
     int_match = re.search(r'\d+', line_of_interest)
     if int_match:
         try:
@@ -112,9 +184,22 @@ def response_hs(textual_response):
         except ValueError:
             return None
 
-    # ----------------------------------------------------------------------
-    # 4. If no pattern found, return None
-    # ----------------------------------------------------------------------
+    # ---------------------------------------------------------
+    # 2e) Single-character fraction (vulgar fractions)
+    # ---------------------------------------------------------
+    # We look for any single non-whitespace character, and test if it's a fraction.
+    # E.g. "½", "⅓", "⅔", etc. We'll scan all single chars in the substring.
+    # If we find a recognized fraction, we return it.
+    for ch in line_of_interest:
+        if ch.isspace():
+            continue
+        fraction_value = parse_single_char_fraction(ch)
+        if fraction_value is not None:
+            return fraction_value
+
+    # ---------------------------------------------------------
+    # If none matched, return None
+    # ---------------------------------------------------------
     return None
 
 
@@ -129,14 +214,14 @@ def process_eg_result_df(results_df, response_processing_fnc, run_name, ungroup_
         results_df_stacked['processed_response'] = results_df_stacked['processed_response'].astype(float)
 
     # adding output columns
-    # results_df_stacked['posterior_prob'] = results_df_stacked.apply(eg_posterior_probability, axis=1)
+    results_df_stacked['posterior_prob'] = results_df_stacked.apply(eg_posterior_probability, axis=1)
     
     # unstacked
     results_df_last_query = results_df_stacked[results_df_stacked['query_idx'] == results_df_stacked['query_total_count']]
     
     columns_name_list = ['subject_id', 'subject_uuid', 'temperature']
     values_name_list = ['processed_response']
-    del_name_list = ['obs_idx', 'batch_id', 'prompt', 'request_id', 'textual_response', 'created_time', 'query_idx', 'query_total_count']		
+    del_name_list = ['obs_idx', 'batch_id', 'prompt', 'request_id', 'textual_response', 'created_time', 'query_idx', 'query_total_count']       
 
     if ungroup_by:
 
@@ -194,7 +279,8 @@ def process_hs_result_df(results_df, response_processing_fnc, run_name, ungroup_
     results_df_stacked_processed = results_df_stacked_processed.sort_values(['model', 'obs_idx', 'instruction'])
 
     return ({path_utils.run_final_stacked_file_path(run_name): results_df_stacked},
-            {path_utils.run_final_stacked_processed_file_path(run_name): results_df_stacked_processed})
+            {path_utils.run_final_stacked_processed_file_path(run_name): results_df_stacked_processed}
+            )
 
 
 def eg_posterior_probability(row):
