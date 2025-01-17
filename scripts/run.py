@@ -15,7 +15,7 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    valid_run_names = ['wisconsin', 'california', 'eg', 'hs']
+    valid_run_names = ['wisconsin', 'wisconsin_flipped', 'california', 'eg', 'hs']
     valid_task_names = ['send', 'resend_failed', 'resend_invalid', 'retrieve', 'finalize']
     parser.add_argument('-r', '--run_name', type=str, help=f"RUN_NAME can be: {', '.join(valid_run_names)}.", required=True)
     parser.add_argument('-t', '--task_name', type=str, help=f"TASK_NAME can be: {', '.join(valid_task_names)}.", required=True)
@@ -66,9 +66,9 @@ if __name__ == '__main__':
             # "gpt-4o-mini",            # points to gpt-4o-mini-2024-07-18
             # "gpt-4",                  # points to gpt-4-0613
             # "gpt-4-turbo",            # points to gpt-4-turbo-2024-04-09
-            # "gpt-3.5-turbo-0125",     # points to gpt-3.5-turbo-0125
-            "o1-mini",                # points to o1-mini-2024-09-12
-            "o1-preview"              # points to o1-preview-2024-09-12
+            "gpt-3.5-turbo-0125",     # points to gpt-3.5-turbo-0125
+            # "o1-mini",                # points to o1-mini-2024-09-12
+            # "o1-preview"              # points to o1-preview-2024-09-12
             ]
 
     # Instructions
@@ -102,13 +102,22 @@ if __name__ == '__main__':
                                                                 seeds)
         response_fnc = response_processing.response_eg
 
+    elif run_name == 'wisconsin_flipped':
+
+        if task_name in ['send', 'resend_invalid']:
+            run_specs = specs_processing.get_wisconsin_flipped_specs_df(temperature_lower_bound, temperature_upper_bound,
+                                                                        models,
+                                                                        instructions,
+                                                                        seeds)
+        response_fnc = response_processing.response_eg
+
     elif run_name == 'hs':
 
         if task_name in ['send', 'resend_invalid']:
             run_specs = specs_processing.get_hs_specs_df(temperature_lower_bound, temperature_upper_bound,
-                                                        models,
-                                                        instructions,
-                                                        seeds)
+                                                         models,
+                                                         instructions,
+                                                         seeds)
 
         response_fnc = response_processing.response_hs
 
@@ -120,17 +129,7 @@ if __name__ == '__main__':
     # ===================================
     # Run task
     # ===================================
-
-    try:
-        # run_specs = run_specs.head(4)
-        # run_specs = run_specs[(run_specs['subject_id']=='DATA11&12 - Subject 1') &
-        #                       (run_specs['instruction']=='reasoning')]
-        run_specs = run_specs[(run_specs['subject_id']=='Part 1 Holt and Smith - id S1') &
-                        (run_specs['instruction']=='reasoning')]
-        print(run_specs)
-    except:
-        pass
-
+    
     if task_name == 'send':
 
         session = OpenAISession(run_name)

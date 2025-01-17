@@ -2,10 +2,10 @@ def prompt_eg(row):
     """
     nballs:
         6 or 10
-        total # of balls in each cage. 6 for California design, and 10 for Wisconsin design
+        total # of balls in each cage. 
     ndraws_from_cage:
         6 or 7
-        # of draws from the cage, i.e., in the outcome. 6 for California design, and 7 for Wisconsin design
+        # of draws from the cage, i.e., in the outcome.
     cage_A_balls_marked_N:
         4
         # of N balls in cage A

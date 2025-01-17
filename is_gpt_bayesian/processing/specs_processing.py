@@ -221,6 +221,24 @@ def get_wisconsin_specs_df(temperature_lower_bound, temperature_upper_bound,
     return data_df
 
 
+def get_wisconsin_flipped_specs_df(temperature_lower_bound, temperature_upper_bound,
+                    models,
+                    instructions,
+                    seeds) -> pd.DataFrame:
+    
+    data_df = get_wisconsin_data()
+    data_df['state'] = 'wisconsin_flipped'
+    data_df['cage_A_balls_marked_N'], data_df['cage_B_balls_marked_N'] = data_df['cage_B_balls_marked_N'], data_df['cage_A_balls_marked_N']
+    data_df = _get_specs_df(data_df,
+                           temperature_lower_bound, temperature_upper_bound,
+                           models,
+                           instructions,
+                           seeds,
+                           prompt_processing.prompt_eg)
+
+    return data_df
+
+
 def get_hs_specs_df(temperature_lower_bound, temperature_upper_bound,
                     models,
                     instructions,
